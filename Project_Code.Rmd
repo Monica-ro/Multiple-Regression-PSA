@@ -1,0 +1,714 @@
+---
+title: "STA 206 - Project Code"
+author: "Yemisi Obasemo and Monica Orme"
+date: "12/2/2022"
+output:
+  html_document: default
+  pdf_document: default
+---
+
+Exploratory Data Analysis will be conducted on the dataset to serve as 
+a guide for model building and selection.
+
+```{r, echo=FALSE}
+# read in the data
+
+
+prostate = read.table("C://Users//OrmeM//OneDrive//m - STA 206//Datasets//prostate.txt", header = F,col.names = c("patient_id","PSA_level", "cancer_volume", "weight", "age", "benign_prostatic_hyperplasia", "seminal_vesicle_invasion", "capsular_penetration", "gleason_score"))
+
+# remove the patient id column
+prostate = prostate[,-1]
+
+
+# head(prostate)
+```
+
+Let's verify the variables' classes 
+```{r}
+sapply(prostate, class)
+```
+
+The classes of seminal vehicle invasion and gleason score should be factor since these are categorical variables.
+
+```{r}
+prostate$seminal_vesicle_invasion  = as.factor(prostate$seminal_vesicle_invasion)
+prostate$gleason_score = as.factor(prostate$gleason_score)
+
+sapply(prostate, class)
+```
+
+
+Let's also check if there are any missing values in the dataset
+```{r}
+sum(is.na(prostate))
+
+
+```
+
+There are no missing values in the dataset since none of the values
+are NA.
+
+
+Now, let's verify the distributions of the variables
+```{r}
+
+par(mfrow=c(3, 3))
+
+for (i in 1:dim(prostate)[2]) {
+  if (class(prostate[,i]) == "numeric" || class(prostate[,i]) == "integer") {
+    hist(prostate[,i], xlab= names(prostate)[i], 
+         main = paste("Distribution of \n", names(prostate)[i]))
+  }
+}
+
+par(mfrow=c(1, 1))
+
+```
+It can be noted that the distribution of the PSA levels, cancer volume,
+weight, and capsular penetrationare right skewed. The distribution of 
+age is roughly symmetric. The distribution of benign prostatic hyperplasia
+appears to be bimodal.
+
+Since there are many zeros for benign prostatic hyperplasia (BPH), we'll add
+a categorical variable to account for this where 1 indicates the presence of
+BPH (BPH levels greater than 0) and 0 for absence (BPH levels equal 0).
+```{r}
+
+# prostate["prostate_bph_presence"] = as.factor(0)
+
+bph_presence = rep(0, nrow(prostate))
+bph_presence[prostate$benign_prostatic_hyperplasia>0] = 1
+bph_presence = as.factor(bph_presence)
+
+
+prostate["bph_presence"] = bph_presence
+
+# create columns
+
+# labels = prostate$benign_prostatic_hyperplasia>0
+# prostate$prostate_bph_presence[labels,] = as.factor(1)
+# head(prostate$prostate_bph_presence)
+
+
+```
+
+
+
+
+Let's also look at the boxplots of the quantitative variables:
+```{r}
+
+par(mfrow=c(3, 2))
+
+for (i in 2:dim(prostate)[2]) {
+  if (class(prostate[,i]) == "numeric" || class(prostate[,i]) == "integer") {
+    boxplot(prostate[,i], xlab= names(prostate)[i], 
+         main = paste("Distribution of \n", names(prostate)[i]), 
+         horizontal = T)
+  }
+}
+
+par(mfrow=c(1, 1))
+
+```
+
+
+
+
+
+In the boxplots, we can note that the most of the variables with
+right-skewed distributions contained outliers. 
+
+
+
+
+To further understand the relationships that exist, we can create
+pie charts (with class percentage) for each categorical variable.
+```{r}
+# pie chart for seminal_vesicle_invasion
+n <- nrow(prostate)
+labels <- c("0 - Absence", "1 - Presence")
+percent <- round(100*table(prostate$seminal_vesicle_invasion)/n)
+lab <- paste(labels, " - ",percent)
+lab <- paste(lab,'%',sep='')
+# lab
+par(mfrow=c(2, 2))
+pie(table(prostate$seminal_vesicle_invasion), labels = lab,
+main='Seminal Vesicle Invasion:\n pie chart with percentage')
+
+
+# pie chart for gleason_score
+n <- nrow(prostate)
+labels <- c("6", "7", "8")
+percent <- round(100*table(prostate$gleason_score)/n)
+lab <- paste(labels, " - ",percent)
+lab <- paste(lab,'%',sep='')
+# lab
+
+pie(table(prostate$gleason_score), labels = lab,
+main='Gleason Score: pie chart with percentage')
+
+
+# pie chart for bph_presence
+n <- nrow(prostate)
+labels <- c("0", "1")
+percent <- round(100*table(prostate$bph_presence)/n)
+lab <- paste(labels, " - ",percent)
+lab <- paste(lab,'%',sep='')
+# lab
+
+pie(table(prostate$bph_presence), labels = lab,
+main='Presence of BPH: pie chart with percentage')
+par(mfrow=c(2, 2))
+
+```
+
+
+We can note that in the pie charts, most of the participants in this study
+don't have presence of seminal vesicle invasion by 78% and the remaining
+22% have it. 44% of the individuals in the study have a gleason score of 7,
+34% have a gleason score of 6, and 22% have a gleason score of 8. This means
+that more than half of the participants (66%) in this study have a moderate or
+worse prognosis.
+
+
+We can also create boxplots of
+the distributions of each quantitative separated by the levels of the 
+categorical variables.
+
+
+Let's get the boxplots on the basis on of the seminal invasion variable:
+```{r}
+par(mfrow=c(3, 2))
+quant_pred_columns = c(2, 3, 4, 5, 7)
+# 
+
+for (i in quant_pred_columns) {
+  boxplot(prostate[,i]~prostate$seminal_vesicle_invasion, 
+        main = paste(names(prostate)[i], ":\n boxplot by Seminal Vesicle Invasion"),
+        ylab = "Seminal Vesicle Invasion", xlab = names(prostate)[i],
+        col = rainbow(2), horizontal = T)
+  
+}
+par(mfrow=c(1, 1))
+
+```
+
+
+
+Now, let's get the boxplots on the basis on of the gleason scores:
+```{r}
+
+par(mfrow=c(3, 2))
+for (i in quant_pred_columns) {
+  boxplot(prostate[,i]~prostate$gleason_score, 
+        main = paste(names(prostate)[i], ":\n boxplot by Gleason Score"),
+        ylab = "Gleason Score", xlab = names(prostate)[i],
+        col = rainbow(3), horizontal = T)
+  
+}
+
+par(mfrow=c(1, 1))
+
+```
+
+```{r}
+
+par(mfrow=c(3, 2))
+
+for (i in quant_pred_columns) {
+  boxplot(prostate[,i]~prostate$bph_presence, 
+        main = paste(names(prostate)[i], ":\n boxplot by BPH Presence"),
+        ylab = "BPH Presence", xlab = names(prostate)[i],
+        col = rainbow(2), horizontal = T)
+  
+}
+
+par(mfrow=c(1, 1))
+```
+
+Let's verify the relationship the PSA levels have with the other
+quantitative variables in the model:
+```{r}
+panel.cor <- function(x, y){
+  #usr <- par("usr")
+  #on.exit(par(usr))
+  par(usr = c(0, 1, 0, 1))
+  r <- round(cor(x, y, use="complete.obs"), 2)
+  txt <- paste0("r = ", r)
+  #cex.cor <- 0.8/strwidth(txt)
+  text(0.5, 0.5, txt)
+}
+pairs(prostate[,c(1, quant_pred_columns)], lower.panel = panel.cor)
+```
+
+
+We can see that the relationship between PSA levels and most
+of the other quantitative variables aren't linear. 
+To address the skewness, we may consider a transformation of the PSA levels.
+Let's apply the log transformation:
+```{r}
+prostate["log_PSA_level"] = log(prostate$PSA_level)
+head(prostate)
+```
+
+
+Let's now plot a histogram of the log transformed PSA levels:
+```{r}
+hist(prostate[,10], xlab= names(prostate)[10], 
+         main = paste("Distribution of \n", names(prostate)[10]))
+```
+
+We can see that the distribution of the log-transformed PSA levels
+is symmetric. 
+
+Now, let's determine which transformation of Y should be used according to
+the Box-Cox procedure:
+
+```{r}
+library(MASS)
+lm_bc = boxcox(lm(PSA_level~.-log_PSA_level, data = prostate))
+#lm_bc$x[which.max(lm_bc$y)]
+```
+
+Since the log-likelihood is maximized when lambda = 0 approximately, so
+we should use the log-transformation on Y.
+
+Now, let's plot the scatterplot matrix of the quantitative
+variables (excluding PSA levels).
+
+
+```{r}
+
+
+pairs(prostate[,c(10, quant_pred_columns)], lower.panel = panel.cor)
+```
+
+Most of the variables have a linear relationship with log(Y). However,
+cancer volume doesn't. Also, Most variables have correlation with each other (besides PSA levels). However,the correlation between cancer volume and capsular penetration is high at
+roughly 0.69.
+
+Since the plot of log(Y) vs. cancer volume is increasing
+and concaves downward, this suggests that a square root transformation
+of X is appropriate.
+```{r}
+par(mfrow=c(1,2))
+plot(prostate$cancer_volume,prostate$log_PSA_level, ylab = "log(PSA Levels)",
+     xlab = "Cancer Volume")
+plot(sqrt(prostate$cancer_volume),prostate$log_PSA_level, ylab = "log(PSA Levels)",
+     xlab = "sqrt(Cancer Volume)")
+
+par(mfrow=c(1,1))
+```
+The trend is more linear after applying the square root transformation
+to cancer volume.
+
+
+We can compare the first order models (without interaction) based on the
+transformation of the cancer volume predictor.
+
+```{r}
+fit_1 = lm(log_PSA_level~cancer_volume+weight+age+benign_prostatic_hyperplasia+bph_presence+seminal_vesicle_invasion+capsular_penetration+gleason_score, data = prostate)
+summary(fit_1)
+
+fit_2 = lm(log_PSA_level~I(sqrt(cancer_volume))+weight+age+benign_prostatic_hyperplasia+bph_presence+seminal_vesicle_invasion+capsular_penetration+gleason_score, data = prostate)
+summary(fit_2)
+```
+
+
+```{r}
+par(mfrow=c(1,2))
+plot(fit_2, which = c(1:2))
+
+par(mfrow=c(1,1))
+```
+We can note that there may be extreme cases that are affecting the 
+results of the regression model, so we'll use Cook's distance
+to identify influencing cases.
+
+```{r}
+
+D=cooks.distance(fit_2)
+cooks_criteria = 4/(n - length(fit_2$coefficients))
+#which(D>1)
+
+which(D>1)
+which(D>cooks_criteria)
+```
+It can be noted that there are a few observations that appear to be a
+influential cases based on Cook's distance.
+We'll investigate this further to determine if it has a 
+significant affect on the model and if we should actually remove it.
+
+```{r}
+plot(fit_2, which = 4)
+```
+
+It can be noted that the 32nd observation (from the original dataset)
+is much more influential
+compared to the other ones in this study based on Cook's distance.
+
+We can also look at the percentage change in the fitted values when we 
+remove the 32nd observation. 
+
+Hence, we'll remove this from the analysis since this individual
+doesn't represent a typical member of the population.
+
+
+```{r}
+prostate_no_32 = prostate[-which(rownames(prostate)==32),]
+
+fit_2_no_32 = lm(log_PSA_level~I(sqrt(cancer_volume))+weight+age+benign_prostatic_hyperplasia+bph_presence+seminal_vesicle_invasion+capsular_penetration+gleason_score, data = prostate_no_32)
+summary(fit_2_no_32)
+```
+
+
+```{r}
+# per_change=abs((fit3$fitted-predict.lm(fit3.no3, fat[,1:2]))/fit3$fitted)*100
+per_change=abs((fit_2$fitted-predict.lm(fit_2_no_32, prostate[,-c(1,10)]))/fit_2$fitted)*100
+summary(per_change)
+```
+
+The percentage difference in the predictions of the response
+range between .18% and 194.6%. Based on this range, case #32 (from the
+original dataset) has a notable influence on the predictions.
+
+```{r}
+plot(fit_2$fitted.values, predict(fit_2_no_32, prostate[,-c(1,10)]), xlab="fitted values using all cases", ylab="fitted values without using case 32") ## compare fitted values
+abline(0,1)
+
+
+```
+
+It can be noted that most of the points are close to a straight line (with 
+slight deviations) and there
+is one observation that noticeably deviates from that line. Hence, the 32nd
+observation will be removed from this analysis since the attributes from 
+this study are significantly different from the rest.
+
+```{r}
+fit_3 = fit_2_no_32
+```
+
+~~~
+
+```{r}
+par(mfrow=c(1,2))
+plot(fit_3, which = c(1:2))
+
+par(mfrow=c(1,1))
+```
+
+
+We can see that the qq plot of the residuals appears to more closely 
+follow a Normal distribution.
+
+Since the transformed response has a linear relationship with
+the square root of cancer volume, we'll add this variable to our dataset.
+
+```{r}
+prostate_1 = prostate
+prostate_1["sqrt_cancer_volume"] = sqrt(prostate_1$cancer_volume)
+```
+
+
+```{r}
+names(prostate_1)
+
+# remove the original response and untransformed cancer volume variable
+prostate_2 = prostate_1[,c(-1,-2)]
+names(prostate_2)
+```
+
+Now, let's plot the scatterplot matrix of the quantitative
+variables (excluding PSA levels).
+
+```{r}
+pairs(prostate_2[,c(8, c(1,2,3,5,9))], lower.panel = panel.cor)
+```
+
+
+```{r}
+set.seed(10) ## set seed for random number generator
+##so everyone gets the same split of the data.
+n=nrow(prostate_2) ## number of cases in data (96)
+ index=sample(1:n, size=n/2, replace=FALSE)
+## randomly sample 183 cases to form the training data.
+data.c=prostate_2[index,] ## get the training data set.
+data.v=prostate_2[-index,] ## the remaining
+```
+
+We draw a box plot to check the distribution of variables in the validation and training data
+```{r}
+
+ par(mfrow=c(2,3))
+boxplot(data.c$log_PSA_level, data.v$log_PSA_level , main=" PSA_level" ,names=c("data.c","data.v"))
+boxplot(data.c$sqrt_cancer_volume
+  ,data.v$sqrt_cancer_volume
+  ,main=" sqrt_cancer_volume
+" ,names=c("data.c","data.v"))
+boxplot(data.c$weight,data.v$weight,main="weight",names=c("data.c","data.v"))
+boxplot(data.c$age,data.v$age,main="age",names=c("data.c","data.v"))
+boxplot(data.c$benign_prostatic_hyperplasia ,data.v$benign_prostatic_hyperplasia ,main="benign_prostatic_hyperplasia ",names=c("data.c","data.v"))
+boxplot(data.c$capsular_penetration ,data.v$capsular_penetration ,main="capsular_penetration ",names=c("data.c","data.v"))
+ par(mfrow=c(1,1))
+ 
+```
+
+```{r}
+library(leaps)
+fit = lm(log_PSA_level~.,data=data.c)
+fit_summ= summary(fit)
+
+sub_set=regsubsets(log_PSA_level~.,data=data.c,nbest=1,nvmax=9,method="exhaustive")
+sum_sub=summary(sub_set)
+n=nrow(data.c)
+## number of coefficients in each model: p
+p.m=as.integer(as.numeric(rownames(sum_sub$which))+1)
+sse=sum_sub$rss
+aic=n*log(sse/n)+2*p.m
+bic=n*log(sse/n)+log(n)*p.m
+res_sub=cbind(sum_sub$which,sse,sum_sub$rsq,sum_sub$adjr2,sum_sub$cp, aic, bic)
+fit0=lm(log_PSA_level~1,data=data.c) ##fit the model with only intercept
+fit_full = lm(log_PSA_level ~., data=data.c)
+ sse1=sum(fit0$residuals^2)
+ p=1
+c1=(sse1/fit_summ$sigma^2)-(n-2*p)
+aic1=n*log(sse1/n)+2*p
+bic1=n*log(sse1/n)+log(n)*p
+ none=c(1,rep(1,9),sse1,0,0,c1,bic1,aic1)
+ res_sub=rbind(none,res_sub) ##combine the results with other models
+ colnames(res_sub)=c(colnames(sum_sub$which),"sse", "R^2", "R^2_a", "Cp", "aic", "bic")
+res_sub
+
+```
+Deciding our final model
+```{r}
+fit1 = lm(log_PSA_level ~., data=data.c)
+library(MASS)
+step.f=stepAIC(fit0,scope=list(upper=fit1, lower=~1), direction="both", k=2)
+step.f$anova
+```
+
+Fitting the best model based on the variable selection process using AIC.
+We would choose another"good" model based on the adjusted R_squared and compare both
+
+
+```{r}
+
+Model_final1 = lm(log_PSA_level ~ sqrt_cancer_volume + seminal_vesicle_invasion + 
+    benign_prostatic_hyperplasia + gleason_score, data = data.c)
+summary(Model_final1)
+par(mfrow=c(2,2))
+plot(Model_final1, which = c(1:3))
+par(mfrow=c(1,1))
+
+```
+
+From the QQplot and fitted versus Residual plot, we can see a linear relationship between the log PSA level and the chosen X variables and we can say that the final model is a good model
+
+#Data Validation
+
+The "best" model based on forward selection, backward elimination and forward or Backward stepwise  with BIC is "log_PSA_level ~ sqrt_cancer_volume + seminal_vesicle_invasion + 
+    benign_prostatic_hyperplasia + gleason_score.
+
+
+
+```{r tidy=TRUE}
+
+
+PRESS_none <- sum((fit0$residuals/(1-influence(fit0)$hat))^2)
+PRESS_full <- sum((fit_full$residuals/(1-influence(fit_full)$hat))^2)
+PRESS_none
+PRESS_full
+PRESS_final1 <- sum((Model_final1$residuals/(1-influence(Model_final1)$hat))^2)
+PRESS_final1
+
+
+```
+
+
+Now, let's conduct model validation on the final Model.
+The "best" model based on $R_a^2$ and AIC is "log_PSA_level ~ sqrt_cancer_volume + seminal_vesicle_invasion + 
+    benign_prostatic_hyperplasia + gleason_score".
+
+The validation data is used to re-run this model.
+
+```{r tidy=TRUE}
+train1 = lm(log_PSA_level ~ sqrt_cancer_volume + seminal_vesicle_invasion + 
+    benign_prostatic_hyperplasia + gleason_score, data =data.c)
+valid1 = lm(log_PSA_level ~ sqrt_cancer_volume + seminal_vesicle_invasion + 
+    benign_prostatic_hyperplasia + gleason_score, data =data.v)
+
+mod_sum1 = cbind(coef(summary(train1))[,1], coef(summary(valid1))[,1],
+coef(summary(train1))[,2], coef(summary(valid1))[,2])
+colnames(mod_sum1) = c("Train Est1","Valid Est1","Train s.e1.","Valid s.e1.")
+```
+
+And we have the following comparison:
+
+```{r}
+mod_sum1
+```
+
+Most of the estimated coefficients as well as their standard errors agree somewhat
+closely on the two data sets.
+
+We can also examine the SSE and adjusted R squares using both the training data and validation data.
+
+```{r}
+sse_t1 <- sum(train1$residuals^2)
+sse_v1 <- sum(valid1$residuals^2)
+Radj_t1 <- summary(train1)$adj.r.squared
+Radj_v1 <- summary(valid1)$adj.r.squared
+train_sum1 <- c(sse_t1,Radj_t1)
+valid_sum1 <- c(sse_v1,Radj_v1)
+criteria1 <- rbind(train_sum1,valid_sum1)
+colnames(criteria1) <- c("SSE1","R2_adj1")
+criteria1
+```
+
+The SSE values are quite far, but the adjusted R squares are very close.
+
+Now what we'd like to do is find the $SSE/n$ under the training model, and compare it to the $MSPE_v$ when we apply our training model to the validation data. 
+
+```{r}
+#Get MSPE_v from new data
+newdata<- data.v[ , -8]
+log_PSA_level.hat1 <- predict(train1, newdata)
+```
+
+Now that we have the fitted values for the validation set (using the estimated coefficients from the training set), we can find $MSPE_v$. We have that:
+$$MSPE_v = \frac{\sum_{j=1}^m(Y_j-\hat{Y}_j)^2}{m}$$
+Where $Y_j$ is the $j$-th observation from the validation set, $\hat{Y}_j$ is the $j$-th fitted value, and $m$ is the number of observations in the validation set.
+
+```{r}
+MSPE1 <- mean((data.v$log_PSA_level -log_PSA_level.hat1 )^2)
+MSPE1
+
+SSE_over_N1 = sse_t1/n
+SSE_over_N1
+```
+
+The MSPE is close to the SSE divided by n, so it doesn't overfit the
+data as much.
+
+
+Based on the R2_adjusted, we would chose the model below and proceed to compare
+
+
+```{r}
+
+Model_final2 = lm(log_PSA_level ~ sqrt_cancer_volume + seminal_vesicle_invasion + 
+    benign_prostatic_hyperplasia + capsular_penetration + gleason_score  , data = data.c)
+summary(Model_final2)
+par(mfrow=c(2,2))
+plot(Model_final2, which = c(1:3))
+par(mfrow=c(1,1))
+
+```
+
+From the QQplot and fitted versus Residual plot, we can see a linear relationship between the log PSA level and the chosen X variables and we can say that the final model is a good model
+
+#Data Validation
+
+The "best" model based on forward selection, backward elimination and forward or Backward stepwise  with BIC is "log_PSA_level ~ sqrt_cancer_volume + seminal_vesicle_invasion + 
+    benign_prostatic_hyperplasia + capsular_penetration + gleason_score.
+
+
+
+```{r tidy=TRUE}
+
+
+PRESS_none <- sum((fit0$residuals/(1-influence(fit0)$hat))^2)
+PRESS_full <- sum((fit_full$residuals/(1-influence(fit_full)$hat))^2)
+PRESS_none
+PRESS_full
+PRESS_final2 <- sum((Model_final2$residuals/(1-influence(Model_final2)$hat))^2)
+PRESS_final2
+
+
+```
+
+
+Now, let's conduct model validation on the final Model.
+The "best" model based on $R_a^2$ and AIC is "log_PSA_level ~ sqrt_cancer_volume + seminal_vesicle_invasion + 
+    benign_prostatic_hyperplasia + capsular_penetration + gleason_score".
+
+The validation data is used to re-run this model.
+
+```{r tidy=TRUE}
+train2 = lm(log_PSA_level ~ sqrt_cancer_volume + seminal_vesicle_invasion + 
+    benign_prostatic_hyperplasia + capsular_penetration +gleason_score, data =data.c)
+valid2 = lm(log_PSA_level ~ sqrt_cancer_volume + seminal_vesicle_invasion + 
+    benign_prostatic_hyperplasia + capsular_penetration + gleason_score, data =data.v)
+
+mod_sum2 = cbind(coef(summary(train2))[,1], coef(summary(valid2))[,1],
+coef(summary(train2))[,2], coef(summary(valid2))[,2])
+colnames(mod_sum2) = c("Train Est2","Valid Est2","Train s.e.2","Valid s.e.2")
+```
+
+And we have the following comparison:
+
+```{r}
+mod_sum2
+```
+
+Most of the estimated coefficients as well as their standard errors agree somewhat
+closely on the two data sets.
+
+We can also examine the SSE and adjusted R squares using both the training data and validation data.
+
+```{r}
+sse_t2 <- sum(train2$residuals^2)
+sse_v2 <- sum(valid2$residuals^2)
+Radj_t2 <- summary(train2)$adj.r.squared
+Radj_v2 <- summary(valid2)$adj.r.squared
+train_sum2 <- c(sse_t2,Radj_t2)
+valid_sum2 <- c(sse_v2,Radj_v2)
+criteria2 <- rbind(train_sum2,valid_sum2)
+colnames(criteria2) <- c("SSE2","R2_adj2")
+criteria2
+```
+
+The SSE values are quite far, but the adjusted R squares are very close.
+
+Now what we'd like to do is find the $SSE/n$ under the training model, and compare it to the $MSPE_v$ when we apply our training model to the validation data. 
+
+```{r}
+#Get MSPE_v from new data
+newdata <- data.v[ , -8]
+log_PSA_level.hat2 <- predict(train2, newdata)
+```
+
+Now that we have the fitted values for the validation set (using the estimated coefficients from the training set), we can find $MSPE_v$. We have that:
+$$MSPE_v = \frac{\sum_{j=1}^m(Y_j-\hat{Y}_j)^2}{m}$$
+Where $Y_j$ is the $j$-th observation from the validation set, $\hat{Y}_j$ is the $j$-th fitted value, and $m$ is the number of observations in the validation set.
+
+```{r}
+MSPE2 <- mean((data.v$log_PSA_level -log_PSA_level.hat2 )^2)
+MSPE2
+
+SSE_over_N2 = sse_t2/n
+SSE_over_N2
+```
+
+The MSPE is close to the SSE divided by n, so it doesn't overfit the
+data as much. 
+
+```{r}
+
+confint(Model_final1,parm=names(Model_final1$coefficients),level=.95)
+```
+```{r}
+
+confint(valid1,parm=names(valid1$coefficients),level=.95)
+```
+```{r}
+Model1_alldata = lm(log_PSA_level ~ sqrt_cancer_volume + seminal_vesicle_invasion + 
+    benign_prostatic_hyperplasia + gleason_score, data = prostate_2)
+
+confint(Model1_alldata,parm=names(Model1_alldata$coefficients),level=.95)
+```
+
+
